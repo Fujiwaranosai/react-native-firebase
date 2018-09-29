@@ -36,6 +36,7 @@ import com.google.firebase.auth.AuthCredential;
 import com.google.firebase.auth.AuthResult;
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException;
 import com.google.firebase.auth.FirebaseAuthProvider;
+import com.google.firebase.auth.FirebaseAuthSettings;
 import com.google.firebase.auth.FirebaseUserMetadata;
 import com.google.firebase.auth.GithubAuthProvider;
 import com.google.firebase.auth.OAuthProvider;
@@ -799,6 +800,8 @@ class RNFirebaseAuth extends ReactContextBaseJavaModule {
 
     // Reset the verification Id
     mVerificationId = null;
+    FirebaseAuthSettings firebaseAuthSettings = firebaseAuth.getFirebaseAuthSettings();
+    //firebaseAuthSettings.setAutoRetrievedSmsCodeForPhoneNumber("+84902169782", "123456");
 
     PhoneAuthProvider.OnVerificationStateChangedCallbacks callbacks = new PhoneAuthProvider.OnVerificationStateChangedCallbacks() {
       private boolean promiseResolved = false;
@@ -806,33 +809,65 @@ class RNFirebaseAuth extends ReactContextBaseJavaModule {
       @Override
       public void onVerificationCompleted(final PhoneAuthCredential phoneAuthCredential) {
         // User has been automatically verified, log them in
-        firebaseAuth.signInWithCredential(phoneAuthCredential)
-          .addOnCompleteListener(new OnCompleteListener<AuthResult>() {
-            @Override
-            public void onComplete(@NonNull Task<AuthResult> task) {
-              if (task.isSuccessful()) {
-                // onAuthStateChanged will pick up the user change
-                Log.d(TAG, "signInWithPhoneNumber:autoVerified:signInWithCredential:onComplete:success");
-                // To ensure that there is no hanging promise, we resolve it with a null verificationId
-                // as calling ConfirmationResult.confirm(code) is invalid in this case anyway
-                if (!promiseResolved) {
-                  WritableMap verificationMap = Arguments.createMap();
-                  verificationMap.putNull("verificationId");
-                  promise.resolve(verificationMap);
-                }
-              } else {
-                // With phone auth, the credential will only every be rejected if the user
-                // account linked to the phone number has been disabled
-                Exception exception = task.getException();
-                Log.e(TAG, "signInWithPhoneNumber:autoVerified:signInWithCredential:onComplete:failure", exception);
-                // In the scenario where an SMS code has been sent, we have no way to report
-                // back to the front-end that as the promise has already been used
-                if (!promiseResolved) {
-                  promiseRejectAuthException(promise, exception);
+        FirebaseUser user = firebaseAuth.getCurrentUser();
+
+        if (user != null) {
+          user.updatePhoneNumber(phoneAuthCredential)
+            .addOnCompleteListener(new OnCompleteListener<Void>() {
+              @Override
+              public void onComplete(@NonNull Task<Void> task) {
+                if (task.isSuccessful()) {
+                  // onAuthStateChanged will pick up the user change
+                  Log.d(TAG, "signInWithPhoneNumber:autoVerified:signInWithCredential:onComplete:success");
+                  // To ensure that there is no hanging promise, we resolve it with a null verificationId
+                  // as calling ConfirmationResult.confirm(code) is invalid in this case anyway
+                  if (!promiseResolved) {
+                    WritableMap verificationMap = Arguments.createMap();
+                    verificationMap.putNull("verificationId");
+                    promise.resolve(verificationMap);
+                  }
+                } else {
+                  // With phone auth, the credential will only every be rejected if the user
+                  // account linked to the phone number has been disabled
+                  Exception exception = task.getException();
+                  Log.e(TAG, "signInWithPhoneNumber:autoVerified:signInWithCredential:onComplete:failure", exception);
+                  // In the scenario where an SMS code has been sent, we have no way to report
+                  // back to the front-end that as the promise has already been used
+                  if (!promiseResolved) {
+                    promiseRejectAuthException(promise, exception);
+                  }
                 }
               }
-            }
-          });
+            });
+        } else {
+          firebaseAuth.signInWithCredential(phoneAuthCredential)
+            .addOnCompleteListener(new OnCompleteListener<AuthResult>() {
+              @Override
+              public void onComplete(@NonNull Task<AuthResult> task) {
+                if (task.isSuccessful()) {
+                  // onAuthStateChanged will pick up the user change
+                  Log.d(TAG, "signInWithPhoneNumber:autoVerified:signInWithCredential:onComplete:success");
+                  // To ensure that there is no hanging promise, we resolve it with a null verificationId
+                  // as calling ConfirmationResult.confirm(code) is invalid in this case anyway
+                  if (!promiseResolved) {
+                    WritableMap verificationMap = Arguments.createMap();
+                    verificationMap.putNull("verificationId");
+                    promise.resolve(verificationMap);
+                  }
+                } else {
+                  // With phone auth, the credential will only every be rejected if the user
+                  // account linked to the phone number has been disabled
+                  Exception exception = task.getException();
+                  Log.e(TAG, "signInWithPhoneNumber:autoVerified:signInWithCredential:onComplete:failure", exception);
+                  // In the scenario where an SMS code has been sent, we have no way to report
+                  // back to the front-end that as the promise has already been used
+                  if (!promiseResolved) {
+                    promiseRejectAuthException(promise, exception);
+                  }
+                }
+              }
+            });
+        }
       }
 
       @Override
